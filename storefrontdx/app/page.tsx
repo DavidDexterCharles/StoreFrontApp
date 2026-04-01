@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 type User = {
   name: string;
   email: string;
-  password: string;
 };
 
 type Product = {
@@ -20,48 +19,13 @@ type CartItem = {
   quantity: number;
 };
 
-const PRODUCTS: Product[] = [
-  {
-    id: "prod-1",
-    name: "Classic Sneakers",
-    description: "Comfortable everyday sneakers in white.",
-    price: 59.99,
-  },
-  {
-    id: "prod-2",
-    name: "Denim Jacket",
-    description: "Stylish denim jacket with a relaxed fit.",
-    price: 79.99,
-  },
-  {
-    id: "prod-3",
-    name: "Wireless Headphones",
-    description: "Noise-reducing headphones with long battery life.",
-    price: 129.99,
-  },
-  {
-    id: "prod-4",
-    name: "Leather Wallet",
-    description: "Slim, durable wallet with several card slots.",
-    price: 34.99,
-  },
-  {
-    id: "prod-5",
-    name: "Travel Backpack",
-    description: "Lightweight backpack with laptop compartment.",
-    price: 69.99,
-  },
-];
-
-const USER_KEY = "storefront-user";
-const CART_KEY = "storefront-cart";
-const SESSION_KEY = "storefront-session";
+const SESSION_USER_KEY = "storefront-session-user";
 
 const formatPrice = (value: number) => `$${value.toFixed(2)}`;
 
 export default function Home() {
-  const [storedUser, setStoredUser] = useState<User | null>(null);
   const [account, setAccount] = useState<User | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mode, setMode] = useState<"login" | "register">("register");
   const [name, setName] = useState("");
@@ -71,153 +35,204 @@ export default function Home() {
   const [orderMessage, setOrderMessage] = useState("");
 
   useEffect(() => {
-    const savedUser = window.localStorage.getItem(USER_KEY);
-    const savedCart = window.localStorage.getItem(CART_KEY);
-    const savedSession = window.localStorage.getItem(SESSION_KEY);
-
-    if (savedUser) {
+    const stored = window.localStorage.getItem(SESSION_USER_KEY);
+    if (stored) {
       try {
-        const parsedUser: User = JSON.parse(savedUser);
-        setStoredUser(parsedUser);
+        const user: User = JSON.parse(stored);
+        setAccount(user);
         setMode("login");
-        if (savedSession === "true") {
-          setAccount(parsedUser);
-        }
       } catch {
-        window.localStorage.removeItem(USER_KEY);
-        window.localStorage.removeItem(SESSION_KEY);
+        window.localStorage.removeItem(SESSION_USER_KEY);
       }
     }
 
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart));
-      } catch {
-        window.localStorage.removeItem(CART_KEY);
-      }
-    }
+    fetchProducts();
   }, []);
+
+  useEffect(() => {
+    if (account) {
+      fetchCart(account.email);
+    }
+  }, [account]);
 
   const cartItems = useMemo(() => {
     return cart
       .map((item) => ({
         ...item,
-        product: PRODUCTS.find((product) => product.id === item.productId),
+        product: products.find((product) => product.id === item.productId),
       }))
       .filter((item) => item.product);
-  }, [cart]);
+  }, [cart, products]);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + (item.product?.price || 0) * item.quantity,
     0,
   );
 
-  const saveStoredUser = (user: User | null) => {
+  async function fetchProducts() {
+    try {
+      const response = await fetch("/api/products");
+      if (!response.ok) throw new Error("Failed to load products.");
+      const data: Product[] = await response.json();
+      setProducts(data);
+    } catch {
+      setMessage("Unable to load products from the database.");
+    }
+  }
+
+  async function fetchCart(userEmail: string) {
+    try {
+      const response = await fetch(
+        `/api/cart?email=${encodeURIComponent(userEmail)}`,
+      );
+      if (!response.ok) throw new Error("Failed to load cart.");
+      const items: CartItem[] = await response.json();
+      setCart(items);
+    } catch {
+      setMessage("Unable to load your cart.");
+    }
+  }
+
+  const persistSession = (user: User | null) => {
     if (user) {
-      window.localStorage.setItem(USER_KEY, JSON.stringify(user));
-      setStoredUser(user);
+      window.localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
     } else {
-      window.localStorage.removeItem(USER_KEY);
-      window.localStorage.removeItem(SESSION_KEY);
-      setStoredUser(null);
+      window.localStorage.removeItem(SESSION_USER_KEY);
     }
   };
 
-  const saveSession = (signedIn: boolean) => {
-    if (signedIn) {
-      window.localStorage.setItem(SESSION_KEY, "true");
-    } else {
-      window.localStorage.removeItem(SESSION_KEY);
-    }
-  };
-
-  const saveCart = (items: CartItem[]) => {
-    if (items.length) {
-      window.localStorage.setItem(CART_KEY, JSON.stringify(items));
-    } else {
-      window.localStorage.removeItem(CART_KEY);
-    }
-    setCart(items);
-  };
-
-  const handleRegister = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleRegister = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setMessage("");
+
     if (!name || !email || !password) {
       setMessage("Please complete all registration fields.");
       return;
     }
-    if (storedUser) {
-      setMessage(
-        "An account already exists. Please login or logout before registering a new account.",
-      );
-      return;
-    }
 
-    const newUser: User = { name, email, password };
-    saveStoredUser(newUser);
-    setMode("login");
-    setMessage("Account created. You can now login.");
-    setName("");
-    setEmail("");
-    setPassword("");
+    try {
+      const response = await fetch("/api/users/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.message || "Registration failed.");
+        return;
+      }
+
+      setMode("login");
+      setMessage("Account created. You can now login.");
+      setName("");
+      setEmail("");
+      setPassword("");
+    } catch {
+      setMessage("Registration failed.");
+    }
   };
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setMessage("");
+
     if (!email || !password) {
       setMessage("Please enter email and password.");
       return;
     }
-    if (!storedUser) {
-      setMessage("No account found. Please register first.");
-      return;
-    }
-    if (storedUser.email !== email || storedUser.password !== password) {
-      setMessage("Email or password is incorrect.");
-      return;
-    }
 
-    setAccount(storedUser);
-    saveSession(true);
-    setMessage(`Welcome back, ${storedUser.name}!`);
-    setPassword("");
+    try {
+      const response = await fetch("/api/users/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.message || "Login failed.");
+        return;
+      }
+
+      setAccount(data);
+      persistSession(data);
+      setMessage(`Welcome back, ${data.name}!`);
+      setPassword("");
+    } catch {
+      setMessage("Login failed.");
+    }
   };
 
   const handleLogout = () => {
     setAccount(null);
-    saveSession(false);
+    persistSession(null);
+    setCart([]);
     setMessage("You are logged out.");
   };
 
-  const handleAddToCart = (productId: string) => {
+  const handleAddToCart = async (productId: string) => {
     setOrderMessage("");
-    const existing = cart.find((item) => item.productId === productId);
-    const nextCart = existing
-      ? cart.map((item) =>
-          item.productId === productId
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        )
-      : [...cart, { productId, quantity: 1 }];
-    saveCart(nextCart);
-    setMessage("Added item to cart.");
+    if (!account) {
+      setMessage("Please login before adding products to your cart.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: account.email, productId, quantity: 1 }),
+      });
+
+      if (!response.ok) throw new Error("Unable to add to cart.");
+      const items: CartItem[] = await response.json();
+      setCart(items);
+      setMessage("Added item to cart.");
+    } catch {
+      setMessage("Unable to add item to cart.");
+    }
   };
 
-  const handleUpdateQuantity = (productId: string, quantity: number) => {
-    const nextCart = cart
-      .map((item) =>
-        item.productId === productId ? { ...item, quantity } : item,
-      )
-      .filter((item) => item.quantity > 0);
-    saveCart(nextCart);
+  const handleUpdateQuantity = async (productId: string, quantity: number) => {
+    if (!account) return;
+    if (quantity <= 0) {
+      handleRemoveFromCart(productId);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/cart", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: account.email, productId, quantity }),
+      });
+      if (!response.ok) throw new Error("Unable to update cart.");
+      const items: CartItem[] = await response.json();
+      setCart(items);
+    } catch {
+      setMessage("Unable to update cart quantity.");
+    }
   };
 
-  const handleRemoveFromCart = (productId: string) => {
-    const nextCart = cart.filter((item) => item.productId !== productId);
-    saveCart(nextCart);
+  const handleRemoveFromCart = async (productId: string) => {
+    if (!account) return;
+
+    try {
+      const response = await fetch("/api/cart", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: account.email, productId }),
+      });
+      if (!response.ok) throw new Error("Unable to remove item.");
+      const items: CartItem[] = await response.json();
+      setCart(items);
+    } catch {
+      setMessage("Unable to remove item from cart.");
+    }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!cart.length) {
       setOrderMessage("Your cart is empty.");
       return;
@@ -227,12 +242,20 @@ export default function Home() {
       return;
     }
 
-    saveCart([]);
-    setOrderMessage(
-      `Thank you for your purchase, ${account.name}! Your order total is ${formatPrice(
-        subtotal,
-      )}.`,
-    );
+    try {
+      const response = await fetch("/api/cart", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: account.email }),
+      });
+      if (!response.ok) throw new Error("Checkout failed.");
+      setCart([]);
+      setOrderMessage(
+        `Thank you for your purchase, ${account.name}! Your order total is ${formatPrice(subtotal)}.`,
+      );
+    } catch {
+      setOrderMessage("Checkout could not be completed.");
+    }
   };
 
   return (
@@ -251,9 +274,7 @@ export default function Home() {
             <p>
               {account
                 ? `Signed in as ${account.name} (${account.email})`
-                : storedUser
-                  ? `Registered user found: ${storedUser.email}. Please login.`
-                  : "No account yet. Register to continue."}
+                : "No account yet. Register to continue."}
             </p>
             {account ? (
               <button
@@ -372,23 +393,6 @@ export default function Home() {
                   login, you can browse goods, add items to the cart, and
                   checkout.
                 </p>
-
-                {storedUser ? (
-                  <div className="mt-6 rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">
-                    <p className="font-semibold">Registered user found</p>
-                    <p>Email: {storedUser.email}</p>
-                    <p className="mt-2 text-slate-500">
-                      If this is your account, login now.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-6 rounded-3xl bg-white p-4 text-sm text-slate-700 shadow-sm">
-                    <p>No account exists yet.</p>
-                    <p className="mt-2 text-slate-500">
-                      Use the register tab to create your user account.
-                    </p>
-                  </div>
-                )}
               </div>
             </aside>
           </section>
@@ -398,7 +402,7 @@ export default function Home() {
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
                 <h2 className="mb-4 text-2xl font-semibold">Available Goods</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {PRODUCTS.map((product) => (
+                  {products.map((product) => (
                     <div
                       key={product.id}
                       className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -421,98 +425,105 @@ export default function Home() {
                   ))}
                 </div>
               </div>
-            </div>
 
-            <aside className="space-y-6">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-2xl font-semibold">Shopping Cart</h2>
-                  <span className="rounded-full bg-slate-900 px-3 py-1 text-sm font-semibold text-white">
+                <div className="mb-6 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-semibold">Shopping Cart</h2>
+                    <p className="text-sm text-slate-500">
+                      Add products to see your cart.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
                     {cartItems.length}
-                  </span>
+                  </div>
                 </div>
 
-                {cartItems.length === 0 ? (
-                  <p className="text-sm text-slate-600">Your cart is empty.</p>
-                ) : (
+                {cartItems.length ? (
                   <div className="space-y-4">
                     {cartItems.map((item) => (
                       <div
-                        key={item.productId}
-                        className="rounded-3xl bg-white p-4 shadow-sm">
+                        key={item.product?.id}
+                        className="rounded-3xl border border-slate-200 bg-white p-4">
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <h3 className="font-semibold text-slate-900">
                               {item.product?.name}
                             </h3>
-                            <p className="text-sm text-slate-600">
-                              {formatPrice(item.product?.price || 0)} each
+                            <p className="text-sm text-slate-500">
+                              Quantity: {item.quantity}
                             </p>
                           </div>
+                          <div className="text-right">
+                            <p className="text-lg font-semibold text-slate-900">
+                              {formatPrice(
+                                (item.product?.price || 0) * item.quantity,
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateQuantity(
+                                item.productId,
+                                item.quantity - 1,
+                              )
+                            }
+                            className="rounded-full border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            -
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateQuantity(
+                                item.productId,
+                                item.quantity + 1,
+                              )
+                            }
+                            className="rounded-full border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                            +
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleRemoveFromCart(item.productId)}
-                            className="text-sm font-semibold text-rose-600 hover:text-rose-700">
+                            className="rounded-full border border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50">
                             Remove
                           </button>
                         </div>
-                        <div className="mt-4 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateQuantity(
-                                  item.productId,
-                                  Math.max(1, item.quantity - 1),
-                                )
-                              }
-                              className="h-10 w-10 rounded-full bg-slate-100 text-slate-700">
-                              −
-                            </button>
-                            <span className="min-w-8 text-center text-sm font-semibold">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateQuantity(
-                                  item.productId,
-                                  item.quantity + 1,
-                                )
-                              }
-                              className="h-10 w-10 rounded-full bg-slate-100 text-slate-700">
-                              +
-                            </button>
-                          </div>
-                          <span className="text-sm font-semibold text-slate-900">
-                            {formatPrice(
-                              (item.product?.price || 0) * item.quantity,
-                            )}
-                          </span>
-                        </div>
                       </div>
                     ))}
+
+                    <div className="rounded-3xl border border-slate-200 bg-white p-6">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-500">Subtotal</span>
+                        <span className="text-lg font-semibold text-slate-900">
+                          {formatPrice(subtotal)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleCheckout}
+                        className="mt-6 w-full rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
+                        Checkout
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+                    Your cart is empty.
                   </div>
                 )}
+              </div>
+            </div>
 
-                <div className="mt-6 rounded-3xl bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between text-sm text-slate-600">
-                    <span>Subtotal</span>
-                    <span>{formatPrice(subtotal)}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCheckout}
-                    className="mt-4 w-full rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
-                    Checkout
-                  </button>
-                </div>
-
-                {orderMessage ? (
-                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-                    {orderMessage}
-                  </div>
-                ) : null}
+            <aside className="space-y-6">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <h2 className="mb-4 text-2xl font-semibold">Order status</h2>
+                <p className="text-sm leading-6 text-slate-600">
+                  {orderMessage || "Complete checkout to place your order."}
+                </p>
               </div>
             </aside>
           </section>
