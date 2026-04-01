@@ -1,1 +1,9 @@
 npx create-next-app@latest --ts storefrontdx
+
+
+The app I am building:
+
+Store Front-
+create a user account
+view goods
+add goods to shopping cart and do checkout to purchase goods
