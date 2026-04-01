@@ -252,15 +252,14 @@ export default function Home() {
               {account
                 ? `Signed in as ${account.name} (${account.email})`
                 : storedUser
-                ? `Registered user found: ${storedUser.email}. Please login.`
-                : "No account yet. Register to continue."}
+                  ? `Registered user found: ${storedUser.email}. Please login.`
+                  : "No account yet. Register to continue."}
             </p>
             {account ? (
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-full bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-700"
-              >
+                className="rounded-full bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-700">
                 Logout
               </button>
             ) : null}
@@ -287,8 +286,7 @@ export default function Home() {
                     mode === "login"
                       ? "bg-slate-900 text-white"
                       : "bg-white text-slate-700 ring-1 ring-slate-200"
-                  }`}
-                >
+                  }`}>
                   Login
                 </button>
                 <button
@@ -301,20 +299,20 @@ export default function Home() {
                     mode === "register"
                       ? "bg-slate-900 text-white"
                       : "bg-white text-slate-700 ring-1 ring-slate-200"
-                  }`}
-                >
+                  }`}>
                   Register
                 </button>
               </div>
 
               <div>
                 <h2 className="mb-4 text-2xl font-semibold">
-                  {mode === "login" ? "Login to your account" : "Create your account"}
+                  {mode === "login"
+                    ? "Login to your account"
+                    : "Create your account"}
                 </h2>
                 <form
                   className="space-y-4"
-                  onSubmit={mode === "login" ? handleLogin : handleRegister}
-                >
+                  onSubmit={mode === "login" ? handleLogin : handleRegister}>
                   {mode === "register" ? (
                     <div>
                       <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -357,8 +355,7 @@ export default function Home() {
 
                   <button
                     type="submit"
-                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
-                  >
+                    className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
                     {mode === "login" ? "Login" : "Register"}
                   </button>
                 </form>
@@ -367,10 +364,13 @@ export default function Home() {
 
             <aside className="space-y-6">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                <h2 className="mb-4 text-2xl font-semibold">Why create an account?</h2>
+                <h2 className="mb-4 text-2xl font-semibold">
+                  Why create an account?
+                </h2>
                 <p className="text-sm leading-6 text-slate-600">
-                  Register once and keep your cart across refreshes. After login,
-                  you can browse goods, add items to the cart, and checkout.
+                  Register once and keep your cart across refreshes. After
+                  login, you can browse goods, add items to the cart, and
+                  checkout.
                 </p>
 
                 {storedUser ? (
@@ -401,10 +401,11 @@ export default function Home() {
                   {PRODUCTS.map((product) => (
                     <div
                       key={product.id}
-                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
-                    >
+                      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
                       <h3 className="text-lg font-semibold">{product.name}</h3>
-                      <p className="mt-2 text-sm text-slate-600">{product.description}</p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {product.description}
+                      </p>
                       <div className="mt-4 flex items-center justify-between gap-3">
                         <span className="text-lg font-semibold text-slate-900">
                           {formatPrice(product.price)}
@@ -412,8 +413,7 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => handleAddToCart(product.id)}
-                          className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-                        >
+                          className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700">
                           Add to Cart
                         </button>
                       </div>
@@ -437,7 +437,9 @@ export default function Home() {
                 ) : (
                   <div className="space-y-4">
                     {cartItems.map((item) => (
-                      <div key={item.productId} className="rounded-3xl bg-white p-4 shadow-sm">
+                      <div
+                        key={item.productId}
+                        className="rounded-3xl bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between gap-4">
                           <div>
                             <h3 className="font-semibold text-slate-900">
@@ -450,8 +452,7 @@ export default function Home() {
                           <button
                             type="button"
                             onClick={() => handleRemoveFromCart(item.productId)}
-                            className="text-sm font-semibold text-rose-600 hover:text-rose-700"
-                          >
+                            className="text-sm font-semibold text-rose-600 hover:text-rose-700">
                             Remove
                           </button>
                         </div>
@@ -465,8 +466,7 @@ export default function Home() {
                                   Math.max(1, item.quantity - 1),
                                 )
                               }
-                              className="h-10 w-10 rounded-full bg-slate-100 text-slate-700"
-                            >
+                              className="h-10 w-10 rounded-full bg-slate-100 text-slate-700">
                               −
                             </button>
                             <span className="min-w-8 text-center text-sm font-semibold">
@@ -474,14 +474,20 @@ export default function Home() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => handleUpdateQuantity(item.productId, item.quantity + 1)}
-                              className="h-10 w-10 rounded-full bg-slate-100 text-slate-700"
-                            >
+                              onClick={() =>
+                                handleUpdateQuantity(
+                                  item.productId,
+                                  item.quantity + 1,
+                                )
+                              }
+                              className="h-10 w-10 rounded-full bg-slate-100 text-slate-700">
                               +
                             </button>
                           </div>
                           <span className="text-sm font-semibold text-slate-900">
-                            {formatPrice((item.product?.price || 0) * item.quantity)}
+                            {formatPrice(
+                              (item.product?.price || 0) * item.quantity,
+                            )}
                           </span>
                         </div>
                       </div>
@@ -497,8 +503,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleCheckout}
-                    className="mt-4 w-full rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
-                  >
+                    className="mt-4 w-full rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Checkout
                   </button>
                 </div>
